@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="CWuPZ9" name="VxT_EQ" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" companyName="VxTProductions"
-              displaySplashScreen="1" pluginFormats="buildAU" cppLanguageStandard="17">
+              displaySplashScreen="1" cppLanguageStandard="17" pluginFormats="buildStandalone,buildVST3">
   <MAINGROUP id="ARAMkh" name="VxT_EQ">
     <GROUP id="{5DF5E5F8-B7CC-DB60-CCC5-4F9CDF4E225A}" name="Source">
       <FILE id="aPqXGz" name="PluginProcessor.cpp" compile="1" resource="0"

@@ -90,11 +90,93 @@ void VxT_EQAudioProcessor::changeProgramName (int index, const juce::String& new
 {
 }
 
+template<int Idx, typename chainType, typename coeffType>
+void VxT_EQAudioProcessor::update(chainType& cutChain, const coeffType& cutCoeff)
+{
+    *cutChain.get<Idx>().coefficients = *cutCoeff[Idx];
+    cutChain.setBypassed<Idx>(false);
+}
+
+template<typename chainType, typename coeffType>
+inline void VxT_EQAudioProcessor::updateCut(chainType& cutChain, const coeffType& cutCoeff, const Slope cutSlope)
+{
+    cutChain.setBypassed<0>(true);
+    cutChain.setBypassed<1>(true);
+    cutChain.setBypassed<2>(true);
+    cutChain.setBypassed<3>(true);
+
+    switch (cutSlope)
+    {
+        case Slope_48:
+        {
+            update<3>(cutChain, cutCoeff);
+            [[fallthrough]];
+        }
+        case Slope_36:
+        {
+            update<2>(cutChain, cutCoeff);
+            [[fallthrough]];
+        }
+        case Slope_24:
+        {
+            update<1>(cutChain, cutCoeff);
+            [[fallthrough]];
+        }
+        case Slope_12:
+        {
+            update<0>(cutChain, cutCoeff);
+            break;
+        }
+    }
+}
+
 //==============================================================================
 void VxT_EQAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    juce::dsp::ProcessSpec spec;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = 1;
+    spec.sampleRate = sampleRate;
+    leftChain.prepare(spec);
+    rightChain.prepare(spec);
+
+    auto s = getChainSettings(apvts);
+
+    //apply peak
+    auto peakCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        sampleRate, s.peakF, s.peakQ, juce::Decibels::decibelsToGain(s.peakGain));
+    *leftChain.get<FilterPositions::Peak>().coefficients  = *peakCoeffs;
+    *rightChain.get<FilterPositions::Peak>().coefficients = *peakCoeffs;
+
+    //apply lowcut
+    auto lowCutCoeff = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+        s.lowCutF, sampleRate, (s.lowCutSlope + 1) * 2);
+    updateCut(
+        leftChain.get<FilterPositions::LowCut>(),
+        lowCutCoeff,
+        static_cast<Slope>(s.lowCutSlope)
+    ); 
+    updateCut(
+        rightChain.get<FilterPositions::LowCut>(),
+        lowCutCoeff,
+        static_cast<Slope>(s.lowCutSlope)
+    );
+
+    //apply highcut
+    auto highCutCoeff = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+        s.highCutF, sampleRate, (s.highCutSlope + 1) * 2);
+    updateCut(
+        leftChain.get<FilterPositions::HighCut>(),
+        highCutCoeff,
+        static_cast<Slope>(s.highCutSlope)
+    );
+    updateCut(
+        rightChain.get<FilterPositions::HighCut>(),
+        highCutCoeff,
+        static_cast<Slope>(s.highCutSlope)
+    );
 }
 
 void VxT_EQAudioProcessor::releaseResources()
@@ -135,27 +217,58 @@ void VxT_EQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
+    // zeroing o/p
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
+    auto s = getChainSettings(apvts);
+    double sampleRate = getSampleRate();
+    //apply peak
+    auto peakCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        sampleRate, s.peakF, s.peakQ, juce::Decibels::decibelsToGain(s.peakGain));
+    *leftChain.get<FilterPositions::Peak>().coefficients = *peakCoeffs;
+    *rightChain.get<FilterPositions::Peak>().coefficients = *peakCoeffs;
 
-        // ..do something to the data...
-    }
+    //apply lowcut
+    auto lowCutCoeff = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+        s.lowCutF, sampleRate, (s.lowCutSlope + 1) * 2);
+    updateCut(
+        leftChain.get<FilterPositions::LowCut>(),
+        lowCutCoeff,
+        static_cast<Slope>(s.lowCutSlope)
+    );
+    updateCut(
+        rightChain.get<FilterPositions::LowCut>(),
+        lowCutCoeff,
+        static_cast<Slope>(s.lowCutSlope)
+    );
+
+    //apply highcut
+    auto highCutCoeff = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+        s.highCutF, sampleRate, (s.highCutSlope + 1) * 2);
+    updateCut(
+        leftChain.get<FilterPositions::HighCut>(),
+        highCutCoeff,
+        static_cast<Slope>(s.highCutSlope)
+    );
+    updateCut(
+        rightChain.get<FilterPositions::HighCut>(),
+        highCutCoeff,
+        static_cast<Slope>(s.highCutSlope)
+    );
+
+
+    juce::dsp::AudioBlock<float> block(buffer);
+    auto leftBlock = block.getSingleChannelBlock(Channels::left);
+    auto rightBlock = block.getSingleChannelBlock(Channels::right);
+
+    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
+    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
+
+
+    leftChain.process(leftContext);
+    rightChain.process(rightContext);
+
 }
 
 //==============================================================================
@@ -184,6 +297,22 @@ void VxT_EQAudioProcessor::setStateInformation (const void* data, int sizeInByte
     // whose contents will have been created by the getStateInformation() call.
 }
 
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState &apvts)
+{
+    ChainSettings s;
+
+    s.lowCutF       = apvts.getRawParameterValue("LowCut")->load();
+    s.lowCutSlope   = static_cast<Slope> (apvts.getRawParameterValue("LowCutSlope")->load());
+    s.highCutF      = apvts.getRawParameterValue("HighCut")->load();
+    s.highCutSlope  = static_cast<Slope> (apvts.getRawParameterValue("HighCutSlope")->load());
+    s.peakF         = apvts.getRawParameterValue("Peak")->load();
+    s.peakGain      = apvts.getRawParameterValue("PeakGain")->load();
+    s.peakQ         = apvts.getRawParameterValue("PeakQ")->load();
+
+    return s;
+}
+
+
 juce::AudioProcessorValueTreeState::ParameterLayout VxT_EQAudioProcessor::createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
@@ -208,15 +337,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout VxT_EQAudioProcessor::create
         slopeArray, 1));
 
     //peak
-    layout.add(std::make_unique<juce::AudioParameterFloat>("PeakFreq", "PeakFreq",
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Peak", "Peak",
         juce::NormalisableRange<float>(200.0f, 20000.0f, 1.0f, 1.0f), 1000.0f));
     layout.add(std::make_unique<juce::AudioParameterFloat>("PeakGain", "PeakGain",
         juce::NormalisableRange<float>(-24.0f, 12.0f, 1.0f, 1.0f), 0.0f));
     layout.add(std::make_unique<juce::AudioParameterFloat>("PeakQ", "PeakQ",
         juce::NormalisableRange<float>(0.1f, 10.0f, 0.05f, 1.0f), 1.0f));
-
-
-
 
     return layout;
 }
