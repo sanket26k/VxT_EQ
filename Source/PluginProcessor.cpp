@@ -166,7 +166,8 @@ bool VxT_EQAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* VxT_EQAudioProcessor::createEditor()
 {
-    return new VxT_EQAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
+    //return new VxT_EQAudioProcessorEditor (*this);
 }
 
 //==============================================================================
@@ -181,6 +182,43 @@ void VxT_EQAudioProcessor::setStateInformation (const void* data, int sizeInByte
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout VxT_EQAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    juce::StringArray slopeArray;
+    for (int i = 0; i < 4; i++)
+    {
+        juce::String str;
+        str << (12 + i * 12);
+        str << " dB/Oct";
+        slopeArray.add(str);
+    }
+    // lowcut
+    layout.add(std::make_unique<juce::AudioParameterFloat>("LowCut", "LowCut",
+        juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 1.0f), 20.0f));
+    layout.add(std::make_unique<juce::AudioParameterChoice>("LowCutSlope", "LowCutSlope",
+        slopeArray, 1));
+
+    //highcut
+    layout.add(std::make_unique<juce::AudioParameterFloat>("HighCut", "HighCut",
+        juce::NormalisableRange<float>(200.0f, 20000.0f, 1.0f, 1.0f), 20000.0f));
+    layout.add(std::make_unique<juce::AudioParameterChoice>("HighCutSlope", "HighCutSlope",
+        slopeArray, 1));
+
+    //peak
+    layout.add(std::make_unique<juce::AudioParameterFloat>("PeakFreq", "PeakFreq",
+        juce::NormalisableRange<float>(200.0f, 20000.0f, 1.0f, 1.0f), 1000.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("PeakGain", "PeakGain",
+        juce::NormalisableRange<float>(-24.0f, 12.0f, 1.0f, 1.0f), 0.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("PeakQ", "PeakQ",
+        juce::NormalisableRange<float>(0.1f, 10.0f, 0.05f, 1.0f), 1.0f));
+
+
+
+
+    return layout;
 }
 
 //==============================================================================
