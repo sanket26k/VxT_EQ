@@ -142,41 +142,7 @@ void VxT_EQAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     leftChain.prepare(spec);
     rightChain.prepare(spec);
 
-    auto s = getChainSettings(apvts);
-
-    //apply peak
-    auto peakCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-        sampleRate, s.peakF, s.peakQ, juce::Decibels::decibelsToGain(s.peakGain));
-    *leftChain.get<FilterPositions::Peak>().coefficients  = *peakCoeffs;
-    *rightChain.get<FilterPositions::Peak>().coefficients = *peakCoeffs;
-
-    //apply lowcut
-    auto lowCutCoeff = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
-        s.lowCutF, sampleRate, (s.lowCutSlope + 1) * 2);
-    updateCut(
-        leftChain.get<FilterPositions::LowCut>(),
-        lowCutCoeff,
-        static_cast<Slope>(s.lowCutSlope)
-    ); 
-    updateCut(
-        rightChain.get<FilterPositions::LowCut>(),
-        lowCutCoeff,
-        static_cast<Slope>(s.lowCutSlope)
-    );
-
-    //apply highcut
-    auto highCutCoeff = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
-        s.highCutF, sampleRate, (s.highCutSlope + 1) * 2);
-    updateCut(
-        leftChain.get<FilterPositions::HighCut>(),
-        highCutCoeff,
-        static_cast<Slope>(s.highCutSlope)
-    );
-    updateCut(
-        rightChain.get<FilterPositions::HighCut>(),
-        highCutCoeff,
-        static_cast<Slope>(s.highCutSlope)
-    );
+    updateFilters();
 }
 
 void VxT_EQAudioProcessor::releaseResources()
@@ -221,6 +187,57 @@ void VxT_EQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
+    updateFilters();
+    
+    juce::dsp::AudioBlock<float> block(buffer);
+    auto leftBlock = block.getSingleChannelBlock(Channels::left);
+    auto rightBlock = block.getSingleChannelBlock(Channels::right);
+
+    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
+    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
+
+
+    leftChain.process(leftContext);
+    rightChain.process(rightContext);
+
+}
+
+//==============================================================================
+bool VxT_EQAudioProcessor::hasEditor() const
+{
+    return true; // (change this to false if you choose to not supply an editor)
+}
+
+juce::AudioProcessorEditor* VxT_EQAudioProcessor::createEditor()
+{
+    //return new juce::GenericAudioProcessorEditor(*this);
+    return new VxT_EQAudioProcessorEditor (*this);
+}
+
+//==============================================================================
+void VxT_EQAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+{
+    // You should use this method to store your parameters in the memory block.
+    // You could do that either as raw data, or use the XML or ValueTree classes
+    // as intermediaries to make it easy to save and load complex data.
+    juce::MemoryOutputStream mos(destData, true);
+    apvts.state.writeToStream(mos);
+}
+
+void VxT_EQAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    // You should use this method to restore your parameters from this memory block,
+    // whose contents will have been created by the getStateInformation() call.
+    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    if (tree.isValid())
+    {
+        apvts.replaceState(tree);
+        updateFilters();
+    }
+}
+
+void VxT_EQAudioProcessor::updateFilters()
+{
     auto s = getChainSettings(apvts);
     double sampleRate = getSampleRate();
     //apply peak
@@ -256,45 +273,6 @@ void VxT_EQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         highCutCoeff,
         static_cast<Slope>(s.highCutSlope)
     );
-
-
-    juce::dsp::AudioBlock<float> block(buffer);
-    auto leftBlock = block.getSingleChannelBlock(Channels::left);
-    auto rightBlock = block.getSingleChannelBlock(Channels::right);
-
-    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
-    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
-
-
-    leftChain.process(leftContext);
-    rightChain.process(rightContext);
-
-}
-
-//==============================================================================
-bool VxT_EQAudioProcessor::hasEditor() const
-{
-    return true; // (change this to false if you choose to not supply an editor)
-}
-
-juce::AudioProcessorEditor* VxT_EQAudioProcessor::createEditor()
-{
-    return new juce::GenericAudioProcessorEditor(*this);
-    //return new VxT_EQAudioProcessorEditor (*this);
-}
-
-//==============================================================================
-void VxT_EQAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
-{
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-}
-
-void VxT_EQAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
-{
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
 }
 
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState &apvts)

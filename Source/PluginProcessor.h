@@ -88,7 +88,8 @@ private:
     template<typename chainType, typename coeffType>
         void updateCut(chainType& cutChain, const coeffType& cutCoeff, const Slope cutSlope);
     template<int Idx, typename chainType, typename coeffType>
-    void update(chainType& cutChain, const coeffType& cutCoeff);
+        void update(chainType& cutChain, const coeffType& cutCoeff);
+    void updateFilters();
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VxT_EQAudioProcessor)
