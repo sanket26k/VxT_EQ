@@ -10,6 +10,11 @@
 
 #include <JuceHeader.h>
 
+using filter = juce::dsp::IIR::Filter<float>;
+using cutFilter = juce::dsp::ProcessorChain<filter, filter, filter, filter>;
+using monoChain = juce::dsp::ProcessorChain<cutFilter, filter, cutFilter>;
+enum FilterPositions { LowCut, Peak, HighCut };
+
 enum Slope {
     Slope_12,
     Slope_24,
@@ -22,7 +27,15 @@ struct ChainSettings {
     float highCutF{ 0 };    Slope highCutSlope{ Slope::Slope_24 };
     float peakF{ 0 };       float peakGain{ 0 };        float peakQ{ 1.0f };
 };
+
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
+
+template<typename chainType, typename coeffType>
+    void updateCut(chainType& cutChain, const coeffType& cutCoeff, const Slope cutSlope);
+template<int Idx, typename chainType, typename coeffType>
+    void update(chainType& cutChain, const coeffType& cutCoeff);
+void updateFilters(const ChainSettings& s, const double sampleRate, monoChain& chain);
+
 
 //==============================================================================
 /**
@@ -78,19 +91,12 @@ public:
 
 private:
     // VxT EQ Private
-    using filter = juce::dsp::IIR::Filter<float>;
-    using cutFilter = juce::dsp::ProcessorChain<filter, filter, filter, filter>;
-    using monoChain = juce::dsp::ProcessorChain<cutFilter, filter, cutFilter>;
+    
     monoChain leftChain, rightChain;
     enum Channels {left=0, right=1};
-    enum FilterPositions {LowCut, Peak, HighCut};
 
-    template<typename chainType, typename coeffType>
-        void updateCut(chainType& cutChain, const coeffType& cutCoeff, const Slope cutSlope);
-    template<int Idx, typename chainType, typename coeffType>
-        void update(chainType& cutChain, const coeffType& cutCoeff);
-    void updateFilters();
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VxT_EQAudioProcessor)
 };
+

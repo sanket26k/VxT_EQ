@@ -17,7 +17,6 @@ struct CustomSlider : juce::Slider
         juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag,
         juce::Slider::TextBoxBelow)
     {
-        
     }
 };
 
@@ -29,8 +28,31 @@ struct CustomSlopeBox : juce::ComboBox
         this->addItem("-24", 2);
         this->addItem("-36", 3);
         this->addItem("-48", 4);
-
     }
+};
+
+struct RespCurveComponent : juce::Component,
+    juce::AudioProcessorParameter::Listener,
+    juce::Timer
+{
+    RespCurveComponent(VxT_EQAudioProcessor&);
+    ~RespCurveComponent() override;
+
+    VxT_EQAudioProcessor& audioProcessor;
+
+    void paint(juce::Graphics&) override;
+    
+    // listener
+    void parameterValueChanged(int parameterIndex, float newValue) override;
+    void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override {};
+    
+    // timer
+    void timerCallback() override;
+    juce::Atomic<bool> paramChanged{ true };
+
+    monoChain respChain;
+
+    
 };
 
 //==============================================================================
@@ -43,13 +65,14 @@ public:
     ~VxT_EQAudioProcessorEditor() override;
 
     //==============================================================================
-    void paint (juce::Graphics&) override;
+    //void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     VxT_EQAudioProcessor& audioProcessor;
+    RespCurveComponent respCurveComponent;
 
     CustomSlider peakF, peakG, peakQ, highC, lowC;
     CustomSlopeBox lowSlope, highSlope;
@@ -62,6 +85,7 @@ private:
     BoxAttachment lowSlopeA, highSlopeA;
 
     std::vector<juce::Component*> getComps();
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VxT_EQAudioProcessorEditor)
 };

@@ -91,14 +91,14 @@ void VxT_EQAudioProcessor::changeProgramName (int index, const juce::String& new
 }
 
 template<int Idx, typename chainType, typename coeffType>
-void VxT_EQAudioProcessor::update(chainType& cutChain, const coeffType& cutCoeff)
+inline void update(chainType& cutChain, const coeffType& cutCoeff)
 {
     *cutChain.get<Idx>().coefficients = *cutCoeff[Idx];
     cutChain.setBypassed<Idx>(false);
 }
 
 template<typename chainType, typename coeffType>
-inline void VxT_EQAudioProcessor::updateCut(chainType& cutChain, const coeffType& cutCoeff, const Slope cutSlope)
+inline void updateCut(chainType& cutChain, const coeffType& cutCoeff, const Slope cutSlope)
 {
     cutChain.setBypassed<0>(true);
     cutChain.setBypassed<1>(true);
@@ -142,7 +142,8 @@ void VxT_EQAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     leftChain.prepare(spec);
     rightChain.prepare(spec);
 
-    updateFilters();
+    updateFilters(getChainSettings(apvts), sampleRate, leftChain);
+    updateFilters(getChainSettings(apvts), sampleRate, rightChain);
 }
 
 void VxT_EQAudioProcessor::releaseResources()
@@ -187,7 +188,8 @@ void VxT_EQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    updateFilters();
+    updateFilters(getChainSettings(apvts), getSampleRate(), leftChain);
+    updateFilters(getChainSettings(apvts), getSampleRate(), rightChain);
     
     juce::dsp::AudioBlock<float> block(buffer);
     auto leftBlock = block.getSingleChannelBlock(Channels::left);
@@ -195,7 +197,6 @@ void VxT_EQAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
     juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
-
 
     leftChain.process(leftContext);
     rightChain.process(rightContext);
@@ -232,30 +233,23 @@ void VxT_EQAudioProcessor::setStateInformation (const void* data, int sizeInByte
     if (tree.isValid())
     {
         apvts.replaceState(tree);
-        updateFilters();
+        updateFilters(getChainSettings(apvts), getSampleRate(), leftChain);
+        updateFilters(getChainSettings(apvts), getSampleRate(), rightChain);
     }
 }
 
-void VxT_EQAudioProcessor::updateFilters()
+inline void updateFilters(const ChainSettings& s, const double sampleRate, monoChain& chain)
 {
-    auto s = getChainSettings(apvts);
-    double sampleRate = getSampleRate();
     //apply peak
     auto peakCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
         sampleRate, s.peakF, s.peakQ, juce::Decibels::decibelsToGain(s.peakGain));
-    *leftChain.get<FilterPositions::Peak>().coefficients = *peakCoeffs;
-    *rightChain.get<FilterPositions::Peak>().coefficients = *peakCoeffs;
+    *chain.get<FilterPositions::Peak>().coefficients = *peakCoeffs;
 
     //apply lowcut
     auto lowCutCoeff = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
         s.lowCutF, sampleRate, (s.lowCutSlope + 1) * 2);
     updateCut(
-        leftChain.get<FilterPositions::LowCut>(),
-        lowCutCoeff,
-        static_cast<Slope>(s.lowCutSlope)
-    );
-    updateCut(
-        rightChain.get<FilterPositions::LowCut>(),
+        chain.get<FilterPositions::LowCut>(),
         lowCutCoeff,
         static_cast<Slope>(s.lowCutSlope)
     );
@@ -264,16 +258,12 @@ void VxT_EQAudioProcessor::updateFilters()
     auto highCutCoeff = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
         s.highCutF, sampleRate, (s.highCutSlope + 1) * 2);
     updateCut(
-        leftChain.get<FilterPositions::HighCut>(),
-        highCutCoeff,
-        static_cast<Slope>(s.highCutSlope)
-    );
-    updateCut(
-        rightChain.get<FilterPositions::HighCut>(),
+        chain.get<FilterPositions::HighCut>(),
         highCutCoeff,
         static_cast<Slope>(s.highCutSlope)
     );
 }
+
 
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState &apvts)
 {
