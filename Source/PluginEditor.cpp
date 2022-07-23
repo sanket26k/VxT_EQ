@@ -11,7 +11,14 @@
 
 //==============================================================================
 VxT_EQAudioProcessorEditor::VxT_EQAudioProcessorEditor (VxT_EQAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (&p), audioProcessor (p),
+    peakFA(audioProcessor.apvts, "Peak", peakF),
+    peakGA(audioProcessor.apvts, "PeakGain", peakG),
+    peakQA(audioProcessor.apvts, "PeakQ", peakQ),
+    highCA(audioProcessor.apvts, "HighCut", highC),
+    lowCA(audioProcessor.apvts, "LowCut", lowC),
+    lowSlopeA(audioProcessor.apvts, "LowCutSlope", lowSlope),
+    highSlopeA(audioProcessor.apvts, "HighCutSlope", highSlope)
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.

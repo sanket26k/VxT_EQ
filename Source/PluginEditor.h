@@ -55,7 +55,11 @@ private:
     CustomSlopeBox lowSlope, highSlope;
 
     using APVTS = juce::AudioProcessorValueTreeState;
+    using Attachment = APVTS::SliderAttachment;
+    using BoxAttachment = APVTS::ComboBoxAttachment;
 
+    Attachment peakFA, peakGA, peakQA, highCA, lowCA;
+    BoxAttachment lowSlopeA, highSlopeA;
 
     std::vector<juce::Component*> getComps();
 
