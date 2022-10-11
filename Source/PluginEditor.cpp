@@ -37,6 +37,20 @@ void RespCurveComponent::timerCallback()
     }
 }
 
+template<int Idx>
+inline double RespCurveComponent::calcPeakMagnitude(peakFilter& chain, const double freq, const double sampleRate)
+{
+    auto m = chain.get<Idx-1>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
+    return m * calcPeakMagnitude<Idx - 1>(chain, freq, sampleRate);
+}
+// specialized exit template
+template<>
+double RespCurveComponent::calcPeakMagnitude<0>(peakFilter& chain, const double freq, const double sampleRate)
+{
+    return 1.0;
+}
+
+
 void RespCurveComponent::paint(juce::Graphics& g)
 {
     using namespace juce;
@@ -59,8 +73,8 @@ void RespCurveComponent::paint(juce::Graphics& g)
         auto freq = mapToLog10(double(i) / double(w), (double)20, (double)20000);
 
         if (!respChain.isBypassed<FilterPositions::Peak>())
-            mag *= respChain.get<FilterPositions::Peak>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
-
+            mag *= calcPeakMagnitude<NUM_PEAK_FILTERS>(respChain.get<FilterPositions::Peak>(), freq, sampleRate);
+        
         if (!respChain.get<FilterPositions::LowCut>().isBypassed<0>())
             mag *= respChain.get<FilterPositions::LowCut>().get<0>().coefficients->getMagnitudeForFrequency(freq, sampleRate);
         if (!respChain.get<FilterPositions::LowCut>().isBypassed<1>())

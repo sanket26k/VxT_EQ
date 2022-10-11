@@ -12,8 +12,13 @@
 
 using filter = juce::dsp::IIR::Filter<float>;
 using cutFilter = juce::dsp::ProcessorChain<filter, filter, filter, filter>;
-using monoChain = juce::dsp::ProcessorChain<cutFilter, filter, cutFilter>;
-enum FilterPositions { LowCut, Peak, HighCut };
+using peakFilter = juce::dsp::ProcessorChain<
+    filter, filter, filter, filter, filter, filter, filter, filter,
+    filter, filter, filter, filter, filter, filter, filter, filter
+    >;
+using monoChain = juce::dsp::ProcessorChain<cutFilter, cutFilter, peakFilter>;
+enum FilterPositions { LowCut, HighCut, Peak };
+using coeffArray = std::vector<juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>>>;
 
 enum Slope {
     Slope_12,
@@ -32,6 +37,8 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
 
 template<typename chainType, typename coeffType>
     void updateCut(chainType& cutChain, const coeffType& cutCoeff, const Slope cutSlope);
+template<int Idx>
+    void updatePeak(peakFilter& peakChain, const coeffArray peakCoeffArray);
 template<int Idx, typename chainType, typename coeffType>
     void update(chainType& cutChain, const coeffType& cutCoeff);
 void updateFilters(const ChainSettings& s, const double sampleRate, monoChain& chain);

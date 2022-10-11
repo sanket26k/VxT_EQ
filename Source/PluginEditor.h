@@ -11,6 +11,8 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
+#define NUM_PEAK_FILTERS 16
+
 struct CustomSlider : juce::Slider
 {
     CustomSlider() : juce::Slider(
@@ -27,7 +29,7 @@ struct CustomSlopeBox : juce::ComboBox
         this->addItem("-12", 1);
         this->addItem("-24", 2);
         this->addItem("-36", 3);
-        this->addItem("-48", 4);
+        this->addItem("-48", 4);    
     }
 };
 
@@ -52,7 +54,11 @@ struct RespCurveComponent : juce::Component,
 
     monoChain respChain;
 
-    
+    // calc Peak
+    template<int Idx>
+    double calcPeakMagnitude(peakFilter& chain, const double freq, const double sampleRate);
+    template<>
+    double calcPeakMagnitude<0>(peakFilter& chain, const double freq, const double sampleRate);
 };
 
 //==============================================================================
@@ -89,3 +95,5 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VxT_EQAudioProcessorEditor)
 };
+
+
